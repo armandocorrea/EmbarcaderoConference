@@ -1,0 +1,153 @@
+stages:
+    - compile-delphi
+    - execute-testes
+    - sonarqube-check
+    - sonarqube-vulnerability-report
+    - release
+    - build
+    - deploy
+    
+compile-delphi:
+  stage: compile-delphi
+  script:
+    - .\compilador.bat
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - bin/
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+    - tags
+  tags:
+    - Delphi
+    
+execute-testes:
+  stage: execute-testes
+  script:
+    - cd bin
+    - .\ECon24Tests.exe
+    - cd .\..\tests
+    - .\dcov_execute.bat
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - bin/
+  allow_failure: false
+  dependencies:
+    - compile-delphi
+  only:
+    - merge_requests
+    - main
+    - develop
+    - tags
+  tags:
+    - Delphi    
+
+sonarqube-check:
+  stage: sonarqube-check
+  image: 
+    name: sonarsource/sonar-scanner-cli:5.0
+    entrypoint: [""]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+  cache:
+    - key: ${CI_COMMIT_REF_SLUG}
+      paths:
+        - bin/  
+    - key: "${CI_JOB_NAME}"
+      paths:
+        - .sonar/cache
+  script: 
+    - sonar-scanner
+  allow_failure: false
+  needs: ["compile-delphi", "execute-testes"]
+  dependencies:
+    - execute-testes
+  only:
+    - merge_requests
+    - main
+    - develop
+  tags:
+    - Delphi
+
+sonarqube-vulnerability-report:
+  stage: sonarqube-vulnerability-report
+  script:
+    - 'curl -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/issues/gitlab_sast_export?projectKey=[INFORME_SEU_PROJECT_KEY_SONAR_QUBE]&branch=${CI_COMMIT_BRANCH}&pullRequest=${CI_MERGE_REQUEST_IID}" -o gl-sast-sonar-report.json'
+  allow_failure: false
+  needs: ["compile-delphi", "execute-testes", "sonarqube-check"]  
+  only:
+    - merge_requests
+    - main
+    - develop
+  artifacts:
+    expire_in: 1 day
+    reports:
+      sast: gl-sast-sonar-report.json
+  dependencies:
+    - sonarqube-check
+
+release-major:
+  stage: release
+  image: python:3.8
+  script:
+    - apt-get update -qy
+    - python3 -m pip install requests
+    - python3 create_gitlab_tag.py
+  variables:
+    VERSION_INCREMENT_TYPE: "major"
+  when: manual
+  allow_failure: true  # Torna o job manual opcional
+  needs: ["compile-delphi", "execute-testes", "sonarqube-check", "sonarqube-vulnerability-report"]
+  only:
+    - develop
+
+release-minor:
+  stage: release
+  image: python:3.8
+  script:
+    - python3 -m pip install requests
+    - python3 create_gitlab_tag.py
+  variables:
+    VERSION_INCREMENT_TYPE: "minor"
+  when: manual
+  allow_failure: true  # Torna o job manual opcional
+  needs: ["compile-delphi", "execute-testes", "sonarqube-check", "sonarqube-vulnerability-report"]
+  only:
+    - develop
+
+release-patch:
+  stage: release
+  image: python:3.8
+  script:
+    - python3 -m pip install requests
+    - python3 create_gitlab_tag.py
+  variables:
+    VERSION_INCREMENT_TYPE: "patch"
+  when: manual
+  allow_failure: true  # Torna o job manual opcional
+  needs: ["compile-delphi", "execute-testes", "sonarqube-check", "sonarqube-vulnerability-report"]
+  only:
+    - develop
+
+deploy:
+  stage: deploy
+  script:
+    - .\deploy.bat
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - bin/    
+  dependencies:
+    - compile-delphi
+    - execute-testes
+  when: manual
+  allow_failure: true  # Torna o job manual opcional
+  only:
+    - tags
+  tags:
+    - Delphi

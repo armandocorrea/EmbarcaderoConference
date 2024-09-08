@@ -1,0 +1,14 @@
+__history
+__recovery
+win64
+win32
+*.zip
+*.local
+*.identcache
+*-lock.json
+*.log
+DCU
+modules
+bin
+lib
+tests/*.xml

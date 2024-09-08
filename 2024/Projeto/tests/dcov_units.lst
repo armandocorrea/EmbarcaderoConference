@@ -1,0 +1,7 @@
+ECon24.controller.interfaces.pas
+ECon24.controller.impl.controller.pas
+ECon24.controller.dto.interfaces.pas
+ECon24.controller.dto.impl.pessoa.pas
+ECon24.model.pessoa.pas
+ECon24.model.service.interfaces.pas
+ECon24.model.service.impl.servicedata.pas
